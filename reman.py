@@ -2,6 +2,8 @@
 # Copyright (C) 2018, Sirius
 # All rights reserved.
 
+sRemanVer = "1.0"
+
 import sys
 
 sTip = "Start client: reman.py client <host> <port> \n\
@@ -66,12 +68,15 @@ class Server(Thread):
         Thread.__init__(self)
         pass
     def kill(self):
-        self.p.kill()
+        try:
+            self.p.kill()
+        except AttributeError:
+            print("Warning: Subprocess not found")
     def prepare(self):
         os.chdir(sSkympServerFolder)
         try:
+            gConn.send(("Reman server version is " + sRemanVer).encode())
             gConn.send(b"Building " + sSkympServer)
-            time.sleep(1)
         except:
             pass
         try:
@@ -82,17 +87,21 @@ class Server(Thread):
                 gConn.send(b"REMAN PANIC: Unable to git pull skymp server")
             except:
                 pass
-        try:
-            os.chdir(sSkympServerFolder + "gamemodes\\")
+        #try:
+        if 1:
+            os.chdir(sSkympServerFolder + "gamemodes/")
             process = subprocess.Popen(["git", "pull", "origin", "master"], stdout=subprocess.PIPE)
             output = process.communicate()[0]
-        except:
+        else:
+        #except:
             try:
                 gConn.send(b"REMAN PANIC: Unable to git pull gamemodes")
             except:
                 pass
         os.chdir(sSkympServerFolder)
         try:
+            sSkympGitFolder = sSkympServerFolder[:-11]
+            os.chdir(sSkympGitFolder)
             process = subprocess.Popen(["make"], stdout=subprocess.PIPE)
             output = process.communicate()[0]
         except:
@@ -107,12 +116,24 @@ class Server(Thread):
             pass
     def run(self):
         self.prepare()
+        os.chdir(sSkympServerFolder)
         try:
             os.mkdir(sLogsDir)
         except:
             pass
-        f = open("server_log.txt", "r")
-        p = subprocess.Popen([sSkympServer],stdout=subprocess.PIPE)
+        f = None
+        try:
+            f = open("server_log.txt", "r")
+        except IOError:
+            f = open("server_log.txt", "w")
+            f.write("\n")
+            f.close()
+            f = open("server_log.txt", "r")
+        try:
+            p = subprocess.Popen([sSkympServerFolder + sSkympServer],stdout=subprocess.PIPE)
+        except OSError:
+            print("Error: " + sSkympServerFolder + sSkympServer + " not found")
+            sys.exit()
         self.p = p
         print(sSkympServer + " was started")
         while True:
@@ -159,7 +180,7 @@ def EnableRemanTitle(bEnable):
 if bIsClient:
     print("Starting reman client")
 
-    EnableRemanTitle(False)
+    EnableRemanTitle(True)
 
     sock = socket.socket()
     print("Started")
@@ -181,8 +202,14 @@ if bIsClient:
             for i in range(0, 100):
                 sData = sData.replace("         ", " ")
                 sData = sData.replace("  ", " ")
+                sData = sData.replace("\n", "")
                 pass
-            print(sData)
+            if sData[0] == " ":
+                sData = sData[:1]
+            if sData[0] == "[":
+                EnableRemanTitle(False)
+            if sData != " ":
+                print(sData)
         except:
             pass
         try:
@@ -196,7 +223,10 @@ if bIsClient:
 
 else:
     print("Starting reman server")
-    copyfile("server.cfg", sSkympServerFolder + "server.cfg")
+    try:
+        copyfile("server.cfg", sSkympServerFolder + "server.cfg")
+    except IOError:
+        copyfile(sSkympServerFolder + "reman/server.cfg", sSkympServerFolder + "server.cfg")
     sock = socket.socket()
     try:
         sock.bind(('', iRemanServerPort))
@@ -227,8 +257,10 @@ else:
                 sData = (bData.decode("windows-1252"))
                 fTime = time.clock()
                 if sExcepted != sData:
-                    print("Wrong internal password")
-                    break
+                    # buggy
+                    #print("Wrong internal password")
+                    #break
+                    pass
                 else:
                     sExcepted = sDummy
             except:
